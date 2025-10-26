@@ -1,0 +1,2 @@
+# ImageDeduplicationTool
+本地化Hash图片去重工具
