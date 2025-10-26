@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Web图片去重工具</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="settings-bar">
+      路径: <input type="text" id="dir-path" value="E:\Pictures\Test" />
+
+      <label
+        ><input type="radio" name="hash-type" value="phash" checked />
+        pHash</label
+      >
+      <label><input type="radio" name="hash-type" value="ahash" /> aHash</label>
+      <label><input type="radio" name="hash-type" value="dhash" /> dHash</label>
+      相似度:
+      <input
+        type="number"
+        id="threshold"
+        value="95"
+        min="50"
+        max="100"
+        style="width: 50px"
+      />%
+
+      <button id="scan-btn">开始扫描</button>
+      <span id="loading" style="display: none">扫描中...</span>
+    </div>
+
+    <div class="auto-select-bar">
+      <strong>自动选择:</strong>
+      <label><input type="checkbox" id="select-smaller-res" /> 分辨率小</label>
+      <label><input type="checkbox" id="select-smaller-size" /> 文件小</label>
+      <label><input type="checkbox" id="select-older-time" /> 时间最旧</label>
+      <button id="auto-select-btn">执行自动选择</button>
+      <button id="batch-delete-btn">批量删除已选</button>
+    </div>
+
+    <div class="main-container">
+      <div class="preview-panel">
+        <div class="image-wrapper" id="wrapper-a">
+          <img id="image-a" src="" />
+          <div class="image-info" id="info-a"></div>
+          <button class="delete-hover-btn" data-target="a">删除这张</button>
+        </div>
+        <div class="image-wrapper" id="wrapper-b">
+          <img id="image-b" src="" />
+          <div class="image-info" id="info-b"></div>
+          <button class="delete-hover-btn" data-target="b">删除这张</button>
+        </div>
+      </div>
+
+      <div class="hash-preview-panel">
+        <div id="hash-mosaic-a" class="hash-mosaic"></div>
+        <div id="hash-mosaic-b" class="hash-mosaic"></div>
+      </div>
+    </div>
+
+    <div class="list-panel">
+      <table id="pairs-table">
+        <thead>
+          <tr>
+            <th>选择</th>
+            <th>文件A</th>
+            <th>文件B</th>
+            <th>相似度</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

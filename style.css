@@ -1,0 +1,119 @@
+body {
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+}
+.settings-bar,
+.auto-select-bar {
+  padding: 10px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+}
+#dir-path {
+  width: 300px;
+}
+.main-container {
+  display: flex;
+  flex: 1;
+  border-bottom: 1px solid #ccc;
+}
+.preview-panel {
+  display: flex;
+  flex: 1;
+}
+.image-wrapper {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  position: relative;
+  border: 2px solid transparent;
+}
+.image-wrapper.selected-for-delete {
+  border: 2px solid #ff0000;
+} /* 标记待删除 */
+.preview-panel img {
+  max-width: 100%;
+  max-height: 40vh;
+  object-fit: contain;
+}
+.image-info {
+  font-size: 12px;
+  color: #555;
+  margin-top: 5px;
+}
+
+/* 3. hover图片时显示删除按钮 */
+.image-wrapper .delete-hover-btn {
+  display: none;
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: #ff0000;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.image-wrapper:hover .delete-hover-btn {
+  display: block;
+}
+
+/* 4. 马赛克预览 */
+.hash-preview-panel {
+  padding: 20px;
+}
+.hash-mosaic {
+  display: grid;
+  grid-template-columns: repeat(8, 16px);
+  grid-template-rows: repeat(8, 16px);
+  border: 1px solid #000;
+  margin-bottom: 20px;
+}
+.hash-mosaic > div {
+  width: 16px;
+  height: 16px;
+}
+.hash-mosaic .cell-0 {
+  background: #fff;
+}
+.hash-mosaic .cell-1 {
+  background: #000;
+}
+
+/* 列表 */
+.list-panel {
+  flex: 1;
+  overflow-y: auto;
+}
+#pairs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+#pairs-table th,
+#pairs-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  font-size: 14px;
+}
+#pairs-table tbody tr {
+  cursor: pointer;
+}
+#pairs-table tbody tr:hover {
+  background: #f5f5f5;
+}
+#pairs-table tbody tr.active {
+  background: #e0efff;
+}
+
+/* 4. 忽略(灰掉此行) */
+#pairs-table tbody tr.ignored {
+  background: #ddd;
+  color: #888;
+  text-decoration: line-through;
+}
+#pairs-table tbody tr.ignored:hover {
+  background: #ddd;
+}
