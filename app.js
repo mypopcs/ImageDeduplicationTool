@@ -100,24 +100,48 @@ $(document).ready(function () {
       } | ${(pair.file2.file_size / 1024).toFixed(2)} KB`
     );
 
-    // 4. 更新马赛克预览
-    renderMosaic("#hash-mosaic-a", pair.file1.hash_matrix);
-    renderMosaic("#hash-mosaic-b", pair.file2.hash_matrix);
-
     // 更新悬浮删除按钮的数据
     $("#wrapper-a .delete-hover-btn").data("path", pathA);
     $("#wrapper-b .delete-hover-btn").data("path", pathB);
   }
 
-  // 4. 渲染马赛克
-  function renderMosaic(selector, matrix) {
-    const $mosaic = $(selector);
-    $mosaic.empty();
-    if (!matrix) return;
-    matrix.forEach((cell_val) => {
-      $mosaic.append(`<div class="cell-${cell_val}"></div>`);
-    });
+  // ----------------------------------------------------------------------
+  // 【新增函数】切换行的忽略状态 (包含样式和控件状态更新)
+  // ----------------------------------------------------------------------
+  function toggleIgnore($row, isIgnoring) {
+    const $radios = $row.find(".del-check");
+    const $ignoreBtn = $row.find(".btn-ignore");
+    const $pathCells = $row.find(".path-a, .path-b");
+
+    if (isIgnoring) {
+      // 激活忽略状态
+      $row.addClass("ignored").removeClass("active");
+      $ignoreBtn.text("取消忽略"); // 1. 按钮文本改为取消忽略
+      $radios.prop("disabled", true); // 3. radio buttons 禁用
+      $radios.prop("checked", false); // 移除选择
+
+      // 2. 文件名不需要加删除线：我们直接移除删除线的样式
+      $pathCells.css("text-decoration", "none");
+
+      // 清理预览区
+      $("#image-a, #image-b").attr("src", "");
+      $("#info-a, #info-b").text("");
+
+      // 自动选中下一行 (如果有)
+      let $nextRow = $row.nextAll(":not(.ignored)").first();
+      if ($nextRow.length) selectRow($nextRow);
+      else selectRow($("#pairs-table tbody tr:not(.ignored)").first());
+    } else {
+      // 取消忽略状态
+      $row.removeClass("ignored");
+      $ignoreBtn.text("忽略"); // 1. 按钮文本改回忽略
+      $radios.prop("disabled", false); // 3. radio buttons 启用
+    }
   }
+
+  // -----------------------------------------------------------
+  // Hash马赛克渲染函数 renderMosaic 已删除
+  // -----------------------------------------------------------
 
   // 2. 支持键盘上下键切换
   $(document).on("keydown", function (e) {
@@ -145,48 +169,135 @@ $(document).ready(function () {
     }
   });
 
-  // 1. 自动选择
+  // 1. 自动选择 (【修复版，包含调试输出】)
   $("#auto-select-btn").on("click", function () {
+    if (currentRowData.length === 0) {
+      alert("请先运行扫描。");
+      return;
+    }
+
+    // 1. 获取所有自动选择的条件值
     const smallerRes = $("#select-smaller-res").is(":checked");
     const smallerSize = $("#select-smaller-size").is(":checked");
     const olderTime = $("#select-older-time").is(":checked");
+
+    // 【相似度和文件名】
+    const simThreshold = parseFloat($("#auto-sim-threshold").val());
+    const requireSameFilename = $("#auto-filename-same").prop("checked");
+
+    // 判断相似度是否被视为 AND 条件：只要用户输入了值 (且有效)，就视为激活。
+    const useSimThreshold =
+      !isNaN(simThreshold) && simThreshold >= 50 && simThreshold <= 100;
+
+    // 2. 检查是否有任何条件被激活 (满足最少1个要求)
+    const anyOrCriteriaActive = smallerRes || smallerSize || olderTime;
+    const isAnyCriteriaActive =
+      anyOrCriteriaActive || requireSameFilename || useSimThreshold;
+
+    console.log("--- 自动选择开始 ---");
+    console.log(
+      `条件激活: ${isAnyCriteriaActive}, SimThreshold: ${simThreshold}, UseSim: ${useSimThreshold}, FnSame: ${requireSameFilename}, OrActive: ${anyOrCriteriaActive}`
+    );
+
+    if (!isAnyCriteriaActive) {
+      alert(
+        "请至少勾选一个选项，或在相似度输入框中填入一个有效值（例如 95）。"
+      );
+      return;
+    }
+
+    let autoSelectedCount = 0;
 
     $("#pairs-table tbody tr:not(.ignored)").each(function () {
       const $row = $(this);
       const index = $row.data("index");
       const pair = currentRowData[index];
+
+      // -----------------------------------------------------------------
+      // Phase 1: 检查所有激活的 AND 且条件
+      // -----------------------------------------------------------------
+      let allAndConditionsMet = true;
+
+      // 【且运算 1】相似度检查
+      if (useSimThreshold && pair.similarity < simThreshold) {
+        allAndConditionsMet = false;
+      }
+
+      // 【且运算 2】文件名相同检查
+      if (requireSameFilename) {
+        const filenameA = pair.file1.path.split(/[\/\\]/).pop();
+        const filenameB = pair.file2.path.split(/[\/\\]/).pop();
+        if (filenameA !== filenameB) {
+          allAndConditionsMet = false;
+        }
+      }
+
+      console.log(
+        `[Pair ${index}, Sim: ${pair.similarity}%] AND Met: ${allAndConditionsMet}`
+      );
+
+      // 如果 AND 且条件没有全部满足，则取消选中并跳过
+      if (!allAndConditionsMet) {
+        $row.find(".del-check").prop("checked", false);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Phase 2: 如果 AND 且条件全部满足，则应用 OR 逻辑选择删除对象
+      // -----------------------------------------------------------------
+      let choice = null; // 'a' or 'b'
       const infoA = pair.file1;
       const infoB = pair.file2;
-
       let resA = infoA.resolution[0] * infoA.resolution[1];
       let resB = infoB.resolution[0] * infoB.resolution[1];
 
-      let choice = null; // 'a' or 'b'
-
+      // 原始选择逻辑：小的删除 (OR 逻辑，按优先级顺序)
       if (smallerRes) {
         if (resA < resB) choice = "a";
-        if (resB < resA) choice = "b";
+        else if (resB < resA) choice = "b";
       }
 
       if (choice === null && smallerSize) {
         if (infoA.file_size < infoB.file_size) choice = "a";
-        if (infoB.file_size < infoA.file_size) choice = "b";
+        else if (infoB.file_size < infoA.file_size) choice = "b";
       }
 
       if (choice === null && olderTime) {
         if (infoA.mod_time < infoB.mod_time) choice = "a";
-        if (infoB.mod_time < infoA.mod_time) choice = "b";
+        else if (infoB.mod_time < infoA.mod_time) choice = "b";
       }
 
-      // 如果标准都一样，默认选一个（或不选）
-      if (choice === null && (smallerRes || smallerSize || olderTime)) {
-        choice = "a"; // 举例：默认选A
+      // 【修正核心】默认选择逻辑 (当所有 OR 条件都没导致选择时，默认选 B)
+      if (choice === null) {
+        // 只要 AND 条件满足了，我们就必须选一个，默认选择 'b'
+        choice = "b";
       }
 
+      console.log(`[Pair ${index}] OR Choice: ${choice}`);
+
+      // 3. 执行选中操作
       if (choice) {
         $row.find(`.del-check[value="${choice}"]`).prop("checked", true);
+        // 确保另一个被取消选中
+        const otherChoice = choice === "a" ? "b" : "a";
+        $row.find(`.del-check[value="${otherChoice}"]`).prop("checked", false);
+        autoSelectedCount++;
+      } else {
+        $row.find(".del-check").prop("checked", false);
       }
     });
+
+    alert(`自动选择完成。共选中 ${autoSelectedCount} 对图片进行删除标记。`);
+  });
+
+  // 【新增】取消全部选择功能
+  $("#unselect-all-btn").on("click", function () {
+    console.log("--- 执行取消全部选择 ---");
+    if (confirm("确认取消所有已选中的删除标记吗？")) {
+      // 取消所有行中的 radio 选中状态
+      $("#pairs-table tbody input.del-check").prop("checked", false);
+      alert("已取消全部删除标记。");
+    }
   });
 
   // 1. 批量删除
@@ -194,25 +305,19 @@ $(document).ready(function () {
     if (!confirm("确认批量删除所有已选项吗？此操作不可恢复！")) {
       return;
     }
-
+    // ... (批量删除代码省略，与您提供的代码逻辑一致)
     const filesToDelete = [];
-    const $rows = [];
-
-    // 收集所有待删除的文件和它们对应的DOM行
     $("#pairs-table tbody tr:not(.ignored)").each(function () {
       const $row = $(this);
-      const checkedVal = $row.find(".del-check:checked").val(); // 'a' or 'b'
+      const checkedVal = $row.find(".del-check:checked").val();
       if (checkedVal) {
         const index = $row.data("index");
         const pair = currentRowData[index];
         const path = checkedVal === "a" ? pair.file1.path : pair.file2.path;
-
-        // 使用一个Set来去重路径，防止同一张图片因为出现在多对中而被多次添加到 filesToDelete
         const existingFile = filesToDelete.find((f) => f.path === path);
         if (!existingFile) {
           filesToDelete.push({ path: path, pairIndex: index, key: checkedVal });
         }
-        $rows.push($row);
       }
     });
 
@@ -224,16 +329,13 @@ $(document).ready(function () {
     let successCount = 0;
     let failCount = 0;
 
-    // 遍历 filesToDelete，逐个执行删除
     for (const item of filesToDelete) {
-      // 使用 await 保证顺序删除，避免同时操作同一行数据
       const result = await deleteFile(
         item.path,
         item.pairIndex,
         item.key,
         false
-      ); // 不在 deleteFile 中弹窗
-
+      );
       if (result) {
         successCount++;
       } else {
@@ -241,7 +343,6 @@ $(document).ready(function () {
       }
     }
 
-    // 【修正 3】日志记录
     const totalPairs = currentRowData.length;
     const deletedFilesCount = filesToDelete.length;
 
@@ -251,8 +352,6 @@ $(document).ready(function () {
         计划删除文件数 (去重后): ${deletedFilesCount}
         删除成功数: ${successCount}
         删除失败数: ${failCount}
-        
-        失败文件：(请查看控制台)
     `;
     console.log(logMessage);
     alert("批量删除完成！\n" + logMessage.trim());
@@ -278,29 +377,26 @@ $(document).ready(function () {
     const path = $(this).data("path");
     if (path && confirm(`确认删除 ${path} 吗？`)) {
       const $activeRow = $("#pairs-table tbody tr.active");
-      deleteFile(path, $activeRow);
+      const index = $activeRow.length ? $activeRow.data("index") : null;
+      let key = null;
+      if (index !== null) {
+        const pair = currentRowData[index];
+        if (pair.file1.path === path) key = "a";
+        if (pair.file2.path === path) key = "b";
+      }
+      deleteFile(path, index, key);
     }
   });
 
   // 4. 忽略
   $("#pairs-table").on("click", ".btn-ignore", function () {
-    $(this).closest("tr").addClass("ignored").removeClass("active");
-    // 清理预览
-    $("#image-a, #image-b").attr("src", "");
-    $("#info-a, #info-b").text("");
-    $("#hash-mosaic-a, #hash-mosaic-b").empty();
-  });
-
-  // 4. 均删
-  $("#pairs-table").on("click", ".btn-delete-both", function () {
     const $row = $(this).closest("tr");
-    const index = $row.data("index");
-    const pair = currentRowData[index];
-    if (confirm(`确认全部删除 ${pair.file1.path} 和 ${pair.file2.path} 吗？`)) {
-      // 两个都删
-      deleteFile(pair.file1.path, null); // 不传row
-      deleteFile(pair.file2.path, $row); // 第二个删完后再移除行
-    }
+
+    // 检查当前是否为忽略状态
+    const isIgnoring = $row.hasClass("ignored");
+
+    // 调用新的切换函数
+    toggleIgnore($row, !isIgnoring);
   });
 
   // 统一的删除函数 (返回 Promise 以支持 await)
@@ -314,16 +410,13 @@ $(document).ready(function () {
         success: function (data) {
           console.log("Deleted:", data.path);
 
-          // 【修正 4】从 currentRowData 中移除被删除的文件信息
           // 遍历所有数据，将路径匹配的文件标记为 "DELETED"
           currentRowData.forEach((pair, index) => {
             const isFile1 = pair.file1.path === data.path;
             const isFile2 = pair.file2.path === data.path;
 
             if (isFile1) {
-              // 将文件路径改为特殊标记
               pair.file1.path = "DELETED";
-              // 同时清除路径信息, 避免后续误操作
               $(`#pairs-table tr[data-index="${index}"] .path-a`).text(
                 "DELETED"
               );
@@ -344,13 +437,13 @@ $(document).ready(function () {
             }
           });
 
-          // 【修正 4】更新预览区状态 (如果删除的是当前预览的图)
+          // 更新预览区状态
           if (
             $("#image-a").attr("src").includes(encodeURIComponent(data.path))
           ) {
             $("#image-a").attr("src", "");
             $("#info-a").text("已删除");
-            $("#wrapper-a .delete-hover-btn").data("path", ""); // 清空悬浮删除按钮数据
+            $("#wrapper-a .delete-hover-btn").data("path", "");
           }
           if (
             $("#image-b").attr("src").includes(encodeURIComponent(data.path))
@@ -360,35 +453,35 @@ $(document).ready(function () {
             $("#wrapper-b .delete-hover-btn").data("path", "");
           }
 
-          resolve(true); // 删除成功
+          resolve(true);
         },
         error: function (xhr, status, error) {
           const errMsg = xhr.responseJSON?.error || "未知错误";
           console.error(`删除失败: ${path} - ${errMsg}`);
 
-          // 【修正 2】如果批量删除，不弹窗，只打印日志
           if (showAlertOnError) {
             alert(`删除失败: ${path} - ${errMsg}`);
           }
 
-          resolve(false); // 删除失败
+          resolve(false);
         },
       });
     });
   }
-  // 4. 均删 (更新为使用新的 deleteFile 函数)
+
+  // 4. 均删
   $("#pairs-table").on("click", ".btn-delete-both", function () {
     const $row = $(this).closest("tr");
     const index = $row.data("index");
     const pair = currentRowData[index];
 
     if (confirm(`确认全部删除 ${pair.file1.path} 和 ${pair.file2.path} 吗？`)) {
-      // 使用 Promise.all 等待两个删除都完成
       Promise.all([
         deleteFile(pair.file1.path, index, "a"),
         deleteFile(pair.file2.path, index, "b"),
       ]).then(() => {
-        // 两个文件都删除成功后，deleteFile 内部会处理行移除
+        // 重新选中下一行
+        selectRow($("#pairs-table tbody tr:not(.ignored)").first());
       });
     }
   });

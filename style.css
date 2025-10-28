@@ -60,28 +60,6 @@ body {
   display: block;
 }
 
-/* 4. 马赛克预览 */
-.hash-preview-panel {
-  padding: 20px;
-}
-.hash-mosaic {
-  display: grid;
-  grid-template-columns: repeat(8, 16px);
-  grid-template-rows: repeat(8, 16px);
-  border: 1px solid #000;
-  margin-bottom: 20px;
-}
-.hash-mosaic > div {
-  width: 16px;
-  height: 16px;
-}
-.hash-mosaic .cell-0 {
-  background: #fff;
-}
-.hash-mosaic .cell-1 {
-  background: #000;
-}
-
 /* 列表 */
 .list-panel {
   flex: 1;

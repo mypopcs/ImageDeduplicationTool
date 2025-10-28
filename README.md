@@ -43,16 +43,4 @@
 pip install Flask flask-cors pillow imagehash
 ```
 
-3. 启动后端服务器，在根目录运行 app.py，您会看到它在 http://127.0.0.1:5000/ 上运行
-
-```
-python app.py
-```
-
-4. 执行前端运行代码，解决跨域问题
-
-```
-python -m http.server 5500
-```
-
-5.打开浏览器，访问 http://127.0.0.1:5500/，即可使用本工具
+3. 运行根目录的 run.bat
